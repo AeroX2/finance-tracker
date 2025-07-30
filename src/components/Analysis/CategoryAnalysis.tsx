@@ -47,7 +47,7 @@ const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ timePeriod = 'all' 
     );
   }
 
-  const expenses = filteredTransactions.filter(t => !t.isIncome && t.category !== 'Investment');
+  const expenses = filteredTransactions.filter(t => !t.isIncome);
   
   // Group expenses by category
   const spendingByCategory: Record<string, number> = {};
@@ -181,9 +181,9 @@ const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ timePeriod = 'all' 
           </div>
         </div>
 
-        <div className="h-80 flex items-center justify-center">
+        <div className="h-96 flex items-center justify-center">
           {chartType === 'pie' ? (
-            <div className="w-full max-w-md">
+            <div className="w-full">
               <Pie data={chartData} options={pieOptions} />
             </div>
           ) : (

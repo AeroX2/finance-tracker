@@ -28,23 +28,16 @@ const SpendingAnalysis: React.FC<SpendingAnalysisProps> = ({ timePeriod = 'all' 
 
   const analysis = calculateSpendingAnalysis(filteredTransactions);
   const expenses = filteredTransactions.filter(t => !t.isIncome && t.category !== 'Investment');
-  const income = filteredTransactions.filter(t => t.isIncome);
+  const income = filteredTransactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
   const investments = filteredTransactions.filter(t => !t.isIncome && t.category === 'Investment');
+  const rentOffsets = filteredTransactions.filter(t => t.category === 'Rent Offset');
 
-  const totalExpenses = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const baseExpenses = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const offsetAmount = rentOffsets.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const totalExpenses = baseExpenses - offsetAmount;
   const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
   const totalInvestments = investments.reduce((sum, t) => sum + Math.abs(t.money), 0);
   const netChange = totalIncome - totalExpenses - totalInvestments;
-
-  const getSpendingTrend = () => {
-    if (analysis.standardDeviation === 0) return 'stable';
-    const coefficient = analysis.standardDeviation / analysis.dailyAverage;
-    if (coefficient < 0.5) return 'stable';
-    if (coefficient < 1.0) return 'moderate';
-    return 'volatile';
-  };
-
-
 
   return (
     <div className="space-y-6">
@@ -139,7 +132,7 @@ const SpendingAnalysis: React.FC<SpendingAnalysisProps> = ({ timePeriod = 'all' 
       {/* Spending Statistics */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Spending Statistics</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 bg-gray-50 rounded-lg">
             <p className="text-sm text-gray-600">Spending Variance</p>
             <p className="text-xl font-bold text-gray-900">{formatMoney(analysis.variance)}</p>
@@ -148,22 +141,13 @@ const SpendingAnalysis: React.FC<SpendingAnalysisProps> = ({ timePeriod = 'all' 
             <p className="text-sm text-gray-600">Standard Deviation</p>
             <p className="text-xl font-bold text-gray-900">{formatMoney(analysis.standardDeviation)}</p>
           </div>
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Spending Trend</p>
-            <p className={`text-xl font-bold capitalize ${
-              getSpendingTrend() === 'stable' ? 'text-green-600' :
-              getSpendingTrend() === 'moderate' ? 'text-yellow-600' : 'text-red-600'
-            }`}>
-              {getSpendingTrend()}
-            </p>
-          </div>
         </div>
       </div>
 
       {/* Income vs Expenses */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Income vs Expenses</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <p className="text-sm text-green-600">Income</p>
             <p className="text-2xl font-bold text-green-600">{formatMoney(totalIncome)}</p>
@@ -174,12 +158,19 @@ const SpendingAnalysis: React.FC<SpendingAnalysisProps> = ({ timePeriod = 'all' 
             <p className="text-2xl font-bold text-red-600">{formatMoney(totalExpenses)}</p>
             <p className="text-xs text-red-600">{expenses.length} transactions</p>
           </div>
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-600">Savings Rate</p>
-            <p className="text-2xl font-bold text-blue-600">
-              {totalIncome > 0 ? ((netChange / totalIncome) * 100).toFixed(1) : 0}%
+          <div className="text-center p-4 bg-emerald-50 rounded-lg">
+            <p className="text-sm text-emerald-600">Cash Savings</p>
+            <p className="text-2xl font-bold text-emerald-600">{formatMoney(totalIncome - totalExpenses - totalInvestments)}</p>
+            <p className="text-xs text-emerald-600">
+              {totalIncome > 0 ? (((totalIncome - totalExpenses - totalInvestments) / totalIncome) * 100).toFixed(1) : 0}% of income
             </p>
-            <p className="text-xs text-blue-600">of income saved</p>
+          </div>
+          <div className="text-center p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-600">Total Savings</p>
+            <p className="text-2xl font-bold text-blue-600">{formatMoney(totalIncome - totalExpenses)}</p>
+            <p className="text-xs text-blue-600">
+              {totalIncome > 0 ? (((totalIncome - totalExpenses) / totalIncome) * 100).toFixed(1) : 0}% of income
+            </p>
           </div>
         </div>
       </div>

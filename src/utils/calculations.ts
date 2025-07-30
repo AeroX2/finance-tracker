@@ -1,8 +1,14 @@
 import { Transaction, SpendingAnalysis, IncomeAnalysis, AnalysisResult, TrendPoint } from '../types';
+import { getCategoryColor as getColor } from '../config/categories';
 
 export const calculateSpendingAnalysis = (transactions: Transaction[]): SpendingAnalysis => {
   const expenses = transactions.filter(t => !t.isIncome && t.category !== 'Investment');
-  const totalSpending = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const rentOffsets = transactions.filter(t => t.category === 'Rent Offset');
+  
+  // Calculate total spending, reducing by rent offset amounts
+  const baseSpending = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const offsetAmount = rentOffsets.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const totalSpending = baseSpending - offsetAmount;
   
   if (expenses.length === 0) {
     return {
@@ -49,7 +55,8 @@ export const calculateIncomeAnalysis = (
   transactions: Transaction[], 
   yearlySalary: number
 ): IncomeAnalysis => {
-  const income = transactions.filter(t => t.isIncome);
+  // Only count actual income, not rent offsets
+  const income = transactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
   const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
   
   const weeklyIncomeIncrease = yearlySalary / 52;
@@ -76,19 +83,30 @@ export const calculateAnalysisResult = (
   transactions: Transaction[]
 ): AnalysisResult => {
   const expenses = transactions.filter(t => !t.isIncome && t.category !== 'Investment');
-  const income = transactions.filter(t => t.isIncome);
+  const income = transactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
+  const rentOffsets = transactions.filter(t => t.category === 'Rent Offset');
   
-  const totalSpending = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  // Calculate spending with rent offset reductions
+  const baseSpending = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const offsetAmount = rentOffsets.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const totalSpending = baseSpending - offsetAmount;
+  
   const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
   const netChange = totalIncome - totalSpending;
   
   const spendingAnalysis = calculateSpendingAnalysis(transactions);
   
-  // Calculate spending by category
+  // Calculate spending by category, including rent offsets as negative spending
   const spendingByCategory: Record<string, number> = {};
   expenses.forEach(transaction => {
     const category = transaction.category || 'Uncategorized';
     spendingByCategory[category] = (spendingByCategory[category] || 0) + Math.abs(transaction.money);
+  });
+  
+  // Add rent offsets as negative amounts to reduce overall spending
+  rentOffsets.forEach(transaction => {
+    const category = transaction.category || 'Uncategorized';
+    spendingByCategory[category] = (spendingByCategory[category] || 0) - Math.abs(transaction.money);
   });
   
   // Get top categories
@@ -98,7 +116,7 @@ export const calculateAnalysisResult = (
     .map(([name, amount]) => ({
       id: name,
       name,
-      color: getCategoryColor(name),
+      color: getColor(name),
       amount,
     }));
   
@@ -140,6 +158,44 @@ export const calculateTrendData = (transactions: Transaction[]): TrendPoint[] =>
   return trendData;
 };
 
+export const calculateBalanceAwareTrendData = (
+  transactions: Transaction[], 
+  currentBalance: number | null
+): TrendPoint[] => {
+  if (!currentBalance) {
+    // Fall back to regular trend data if no current balance
+    return calculateTrendData(transactions);
+  }
+
+  // Sort transactions by date
+  const sortedTransactions = [...transactions].sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  
+  if (sortedTransactions.length === 0) {
+    return [];
+  }
+
+  const trendData: TrendPoint[] = [];
+  
+  // Calculate the total change from all transactions
+  const totalTransactionChange = sortedTransactions.reduce((sum, t) => sum + t.money, 0);
+  
+  // Starting balance would be current balance minus all transaction changes
+  let runningBalance = currentBalance - totalTransactionChange;
+  
+  sortedTransactions.forEach(transaction => {
+    runningBalance += transaction.money;
+    trendData.push({
+      date: transaction.date,
+      value: transaction.money,
+      cumulative: runningBalance, // This now represents actual account balance
+    });
+  });
+  
+  return trendData;
+};
+
 export const calculateTrend = (transactions: Transaction[]): number => {
   if (transactions.length < 2) return 0;
   
@@ -162,30 +218,8 @@ export const calculateTrend = (transactions: Transaction[]): number => {
   return slope;
 };
 
-export const getCategoryColor = (categoryName: string): string => {
-  const colors = [
-    '#3B82F6', // blue
-    '#EF4444', // red
-    '#10B981', // green
-    '#F59E0B', // yellow
-    '#8B5CF6', // purple
-    '#F97316', // orange
-    '#06B6D4', // cyan
-    '#84CC16', // lime
-    '#EC4899', // pink
-    '#6B7280', // gray
-  ];
-  
-  // Simple hash function for consistent colors
-  let hash = 0;
-  for (let i = 0; i < categoryName.length; i++) {
-    const char = categoryName.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  
-  return colors[Math.abs(hash) % colors.length];
-};
+// Re-export the getCategoryColor function from the categories config
+export const getCategoryColor = getColor;
 
 export const groupTransactionsByPeriod = (
   transactions: Transaction[], 

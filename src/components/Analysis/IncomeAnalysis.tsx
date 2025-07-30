@@ -17,7 +17,7 @@ const IncomeAnalysis: React.FC = () => {
     );
   }
 
-  const income = state.transactions.filter(t => t.isIncome);
+  const income = state.transactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
   const expenses = state.transactions.filter(t => !t.isIncome);
   
   const totalIncome = income.reduce((sum, t) => sum + t.money, 0);

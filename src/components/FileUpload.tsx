@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Plus, Database } from 'lucide-react';
 import { parseCSV } from '../utils/csvParser';
 import { useAppContext, appActions } from '../context/AppContext';
 
@@ -8,6 +8,8 @@ const FileUpload: React.FC = () => {
   const { state, dispatch } = useAppContext();
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadMode, setUploadMode] = useState<'replace' | 'combine'>('combine');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleFileUpload = useCallback(async (file: File) => {
     if (!file.name.toLowerCase().endsWith('.csv')) {
@@ -28,18 +30,47 @@ const FileUpload: React.FC = () => {
         return;
       }
 
-      dispatch(appActions.setTransactions(transactions));
-      setUploadStatus('success');
+      if (uploadMode === 'replace') {
+        // Replace all data
+        dispatch(appActions.setTransactions(transactions));
+        setUploadStatus('success');
+        setSuccessMessage(`Replaced all data with ${transactions.length} transactions`);
+        dispatch(appActions.clearError());
+      } else {
+        // Combine data - preserve existing categories and add new transactions
+        const existingTransactionIds = new Set(state.transactions.map(t => t.id));
+        
+        const newTransactions = transactions.filter(t => !existingTransactionIds.has(t.id));
+        
+        if (newTransactions.length === 0) {
+          dispatch(appActions.setError('No new transactions found. All transactions already exist.'));
+          setUploadStatus('error');
+          return;
+        }
+        
+        const combinedTransactions = [...state.transactions, ...newTransactions];
+        dispatch(appActions.setTransactions(combinedTransactions));
+        setUploadStatus('success');
+        
+        // Show success message with details
+        const skippedCount = transactions.length - newTransactions.length;
+        const message = `Added ${newTransactions.length} new transactions${skippedCount > 0 ? `, skipped ${skippedCount} duplicates` : ''}. Total: ${combinedTransactions.length} transactions`;
+        setSuccessMessage(message);
+        dispatch(appActions.clearError());
+      }
       
       // Reset success status after 3 seconds
-      setTimeout(() => setUploadStatus('idle'), 3000);
+      setTimeout(() => {
+        setUploadStatus('idle');
+        setSuccessMessage(null);
+      }, 3000);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to parse CSV file';
       dispatch(appActions.setError(errorMessage));
       setUploadStatus('error');
     }
-  }, [dispatch]);
+  }, [dispatch, uploadMode, state.transactions]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -106,6 +137,36 @@ const FileUpload: React.FC = () => {
             The file should contain data in format: "DD/MM/YYYY", "money", "description" (no headers needed)
           </p>
           
+          {/* Upload Mode Selection */}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center space-x-2 mb-3">
+              <Database className="h-5 w-5 text-blue-600" />
+              <span className="font-medium text-blue-800">Upload Mode</span>
+            </div>
+            <div className="flex space-x-4">
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  value="combine"
+                  checked={uploadMode === 'combine'}
+                  onChange={(e) => setUploadMode(e.target.value as 'replace' | 'combine')}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-blue-700">Combine with existing data</span>
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="radio"
+                  value="replace"
+                  checked={uploadMode === 'replace'}
+                  onChange={(e) => setUploadMode(e.target.value as 'replace' | 'combine')}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-blue-700">Replace all data</span>
+              </label>
+            </div>
+          </div>
+          
           <div
             className={`border-2 border-dashed rounded-lg p-8 transition-colors duration-200 ${
               isDragOver 
@@ -162,16 +223,25 @@ const FileUpload: React.FC = () => {
                     {state.transactions.length} transactions loaded
                   </span>
                 </div>
-                <button
-                  onClick={() => {
-                    dispatch(appActions.resetState());
-                    setUploadStatus('idle');
-                  }}
-                  className="text-sm text-blue-600 hover:text-blue-800 underline"
-                >
-                  Clear data
-                </button>
               </div>
+            </div>
+          )}
+          
+          {successMessage && (
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <span className="text-green-800">{successMessage}</span>
+              </div>
+              <button
+                onClick={() => {
+                  setSuccessMessage(null);
+                  setUploadStatus('idle');
+                }}
+                className="mt-2 text-sm text-green-600 hover:text-green-800 underline"
+              >
+                Dismiss
+              </button>
             </div>
           )}
           

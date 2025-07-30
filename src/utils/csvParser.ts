@@ -35,7 +35,7 @@ export const parseCSV = (file: File): Promise<Transaction[]> => {
               }
 
               return {
-                id: generateId(),
+                id: generateId(date, money, description.trim()),
                 date: date,
                 money: money,
                 description: description.trim(),
@@ -103,8 +103,27 @@ const parseMoney = (moneyString: string): number | null => {
   }
 };
 
-const generateId = (): string => {
-  return Math.random().toString(36).substr(2, 9);
+// Simple but effective hash function (FNV-1a variant)
+const simpleHash = (str: string): string => {
+  let hash = 2166136261; // FNV offset basis
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash *= 16777619; // FNV prime
+    hash = hash >>> 0; // Convert to 32-bit unsigned integer
+  }
+  return hash.toString(16).padStart(8, '0');
+};
+
+const generateId = (date: string, money: number, description: string): string => {
+  // Create a deterministic ID by hashing all transaction data
+  const dataToHash = `${date}|${money.toFixed(2)}|${description.trim()}`;
+  const hashValue = simpleHash(dataToHash);
+  
+  // Add a secondary hash of just the description for extra uniqueness
+  const descHash = simpleHash(description.trim());
+  const combinedHash = `${hashValue}_${descHash}`;
+  
+  return combinedHash;
 };
 
 export const validateCSVFormat = (data: any[]): boolean => {

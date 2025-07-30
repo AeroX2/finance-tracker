@@ -72,11 +72,7 @@ export const parsePayPalCSV = async (file: File): Promise<PayPalTransaction[]> =
             itemTitle: row['Item Title'] || '',
           };
           
-          // Debug date parsing
-          if (transaction.date) {
-            const parsedDate = parsePayPalDate(transaction.date);
-            console.log(`PayPal date: "${transaction.date}" -> ${parsedDate.toISOString()}`);
-          }
+
           
           return transaction;
         });

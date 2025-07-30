@@ -3,6 +3,7 @@ import { Calendar, DollarSign, Search, Filter, Edit2, Check, X } from 'lucide-re
 import { useAppContext, appActions } from '../../context/AppContext';
 import { formatMoney, formatDate } from '../../utils/csvParser';
 import { getCategoryColor } from '../../utils/calculations';
+import { DEFAULT_CATEGORIES } from '../../config/categories';
 
 const TransactionList: React.FC = () => {
   const { state, dispatch } = useAppContext();
@@ -115,12 +116,8 @@ const TransactionList: React.FC = () => {
     setEditingCategory('');
   };
 
-  // Get unique categories for filter
-  const uniqueCategories = Array.from(new Set(
-    state.transactions
-      .map(t => t.category)
-      .filter(Boolean)
-  )).sort();
+  // Get categories from config
+  const availableCategories = DEFAULT_CATEGORIES.map(cat => cat.name).sort();
 
   return (
     <div className="space-y-6">
@@ -164,7 +161,7 @@ const TransactionList: React.FC = () => {
               >
                 <option value="all">All Categories</option>
                 <option value="uncategorized">Uncategorized</option>
-                {uniqueCategories.map(category => (
+                {availableCategories.map(category => (
                   <option key={category} value={category}>{category}</option>
                 ))}
               </select>

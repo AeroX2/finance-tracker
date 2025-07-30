@@ -3,6 +3,8 @@ import type { Transaction, Category } from '../types';
 interface StoredData {
   transactions: Transaction[];
   categories: Category[];
+  currentBalance: number | null;
+  yearlySalary: number | null;
   lastUpdated: string;
   version: string;
 }
@@ -12,27 +14,24 @@ const CURRENT_VERSION = '1.0.0';
 
 export const storage = {
   // Save data to localStorage
-  saveData: (transactions: Transaction[], categories: Category[]) => {
+  saveData: (transactions: Transaction[], categories: Category[], currentBalance?: number | null, yearlySalary?: number | null) => {
     try {
       const data: StoredData = {
         transactions,
         categories,
+        currentBalance: currentBalance || null,
+        yearlySalary: yearlySalary || null,
         lastUpdated: new Date().toISOString(),
         version: CURRENT_VERSION
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      console.log('Data saved to localStorage:', { 
-        transactionCount: transactions.length, 
-        categoryCount: categories.length,
-        timestamp: new Date().toISOString()
-      });
     } catch (error) {
       console.error('Failed to save data to localStorage:', error);
     }
   },
 
   // Load data from localStorage
-  loadData: (): { transactions: Transaction[]; categories: Category[] } | null => {
+  loadData: (): { transactions: Transaction[]; categories: Category[]; currentBalance: number | null; yearlySalary: number | null } | null => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) return null;
@@ -46,15 +45,13 @@ export const storage = {
         return null;
       }
 
-      console.log('Data loaded from localStorage:', { 
-        transactionCount: data.transactions.length, 
-        categoryCount: data.categories.length,
-        lastUpdated: data.lastUpdated
-      });
+
 
       return {
         transactions: data.transactions,
-        categories: data.categories
+        categories: data.categories,
+        currentBalance: data.currentBalance || null,
+        yearlySalary: data.yearlySalary || null
       };
     } catch (error) {
       console.error('Failed to load data from localStorage:', error);
@@ -66,7 +63,6 @@ export const storage = {
   clearData: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);
-      console.log('LocalStorage data cleared');
     } catch (error) {
       console.error('Failed to clear localStorage:', error);
     }

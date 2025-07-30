@@ -1,32 +1,14 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect, useState } from 'react';
 import { AppState, Transaction, Category } from '../types';
 import { storage } from '../utils/storage';
+import { getDefaultCategories } from '../config/categories';
 
 interface AppAction {
   type: string;
   payload?: any;
 }
 
-const defaultCategories = [
-  { id: 'income', name: 'Income', color: '#10B981' },
-  { id: 'groceries', name: 'Groceries', color: '#3B82F6' },
-  { id: 'dining', name: 'Dining', color: '#F59E0B' },
-  { id: 'transportation', name: 'Transportation', color: '#8B5CF6' },
-  { id: 'shopping', name: 'Shopping', color: '#EC4899' },
-  { id: 'entertainment', name: 'Entertainment', color: '#06B6D4' },
-  { id: 'utilities', name: 'Utilities', color: '#84CC16' },
-  { id: 'healthcare', name: 'Healthcare', color: '#EF4444' },
-  { id: 'insurance', name: 'Insurance', color: '#F97316' },
-  { id: 'education', name: 'Education', color: '#6366F1' },
-  { id: 'travel', name: 'Travel', color: '#14B8A6' },
-  { id: 'home', name: 'Home', color: '#A855F7' },
-  { id: 'personal-care', name: 'Personal Care', color: '#F43F5E' },
-  { id: 'gifts', name: 'Gifts', color: '#EAB308' },
-  { id: 'subscriptions', name: 'Subscriptions', color: '#22C55E' },
-  { id: 'investment', name: 'Investment', color: '#059669' },
-  { id: 'donations', name: 'Donations', color: '#DC2626' },
-  { id: 'other', name: 'Other', color: '#6B7280' },
-];
+
 
 const initialState: AppState = {
   transactions: [],
@@ -151,22 +133,28 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     if (savedData) {
       dispatch({ type: 'SET_TRANSACTIONS', payload: savedData.transactions });
       dispatch({ type: 'SET_CATEGORIES', payload: savedData.categories });
-      console.log('Loaded data from localStorage on app start');
+      if (savedData.currentBalance !== null) {
+        dispatch({ type: 'SET_CURRENT_BALANCE', payload: savedData.currentBalance });
+      }
+      if (savedData.yearlySalary !== null) {
+        dispatch({ type: 'SET_YEARLY_SALARY', payload: savedData.yearlySalary });
+      }
+
     } else {
       // Only load default categories if no data exists in localStorage
-      dispatch({ type: 'SET_CATEGORIES', payload: defaultCategories });
-      console.log('Loaded default categories (no localStorage data found)');
+      dispatch({ type: 'SET_CATEGORIES', payload: getDefaultCategories() });
+
     }
     setIsInitialized(true);
   }, []);
 
-  // Save data to localStorage whenever transactions or categories change
+  // Save data to localStorage whenever transactions, categories, balance, or salary change
   useEffect(() => {
     // Only save after initialization to avoid overwriting with empty data
-    if (isInitialized && (state.transactions.length > 0 || state.categories.length > 0)) {
-      storage.saveData(state.transactions, state.categories);
+    if (isInitialized && (state.transactions.length > 0 || state.categories.length > 0 || state.currentBalance !== null || state.yearlySalary !== null)) {
+      storage.saveData(state.transactions, state.categories, state.currentBalance, state.yearlySalary);
     }
-  }, [state.transactions, state.categories, isInitialized]);
+  }, [state.transactions, state.categories, state.currentBalance, state.yearlySalary, isInitialized]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

@@ -1,18 +1,24 @@
 import React, { useState } from 'react';
-import { DollarSign, Upload, TrendingUp, List } from 'lucide-react';
+import { DollarSign, Upload, TrendingUp, List, Database, Brain } from 'lucide-react';
 import { AppProvider } from './context/AppContext';
 import FileUpload from './components/FileUpload';
 import BalanceInput from './components/BalanceInput';
 import SpendingChart from './components/Charts/SpendingChart';
 import SpendingAnalysis from './components/Analysis/SpendingAnalysis';
 import CategoryAnalysis from './components/Analysis/CategoryAnalysis';
+import BalanceTracking from './components/Analysis/BalanceTracking';
 import TransactionList from './components/Analysis/TransactionList';
 import PayPalAnalysis from './components/Analysis/PayPalAnalysis';
+import ComparisonAnalysis from './components/Analysis/ComparisonAnalysis';
+import SpendingHeatmap from './components/Analysis/SpendingHeatmap';
 import AutoCategorization from './components/AI/AutoCategorization';
+import CustomCategorizationRules from './components/AI/CustomCategorizationRules';
+import ApiKeyManager from './components/AI/ApiKeyManager';
+import DataManagement from './components/DataManagement';
 import TimePeriodSelector, { TimePeriod } from './components/Analysis/TimePeriodSelector';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'upload' | 'transactions' | 'analysis'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'transactions' | 'analysis' | 'ai' | 'data'>('upload');
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('all');
 
   return (
@@ -68,6 +74,28 @@ const App: React.FC = () => {
                 <TrendingUp className="h-4 w-4" />
                 <span>Analysis</span>
               </button>
+              <button
+                onClick={() => setActiveTab('ai')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                  activeTab === 'ai'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Brain className="h-4 w-4" />
+                <span>AI Tools</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('data')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
+                  activeTab === 'data'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Database className="h-4 w-4" />
+                <span>Data</span>
+              </button>
             </div>
           </div>
         </nav>
@@ -102,11 +130,13 @@ const App: React.FC = () => {
                 </p>
               </div>
               
-              {/* Time Period Selector */}
-              <TimePeriodSelector 
-                selectedPeriod={selectedTimePeriod}
-                onPeriodChange={setSelectedTimePeriod}
-              />
+              {/* Sticky Time Period Selector */}
+              <div className="sticky top-0 z-10 bg-white border-b border-gray-200 -mx-8 px-8 py-4 shadow-sm">
+                <TimePeriodSelector 
+                  selectedPeriod={selectedTimePeriod}
+                  onPeriodChange={setSelectedTimePeriod}
+                />
+              </div>
               
               <div className="space-y-8">
                 <div className="card">
@@ -120,11 +150,20 @@ const App: React.FC = () => {
                 </div>
               </div>
               
+              {/* Balance Tracking */}
+              <BalanceTracking timePeriod={selectedTimePeriod} />
+              
               {/* Spending Analysis */}
               <SpendingAnalysis timePeriod={selectedTimePeriod} />
               
               {/* Category Analysis */}
               <CategoryAnalysis timePeriod={selectedTimePeriod} />
+              
+              {/* Spending Heatmap */}
+              <SpendingHeatmap />
+              
+              {/* Comparison Analysis */}
+              <ComparisonAnalysis />
             </div>
           )}
 
@@ -139,9 +178,40 @@ const App: React.FC = () => {
                 </p>
               </div>
               
-              <AutoCategorization />
               <PayPalAnalysis />
               <TransactionList />
+            </div>
+          )}
+
+          {activeTab === 'ai' && (
+            <div className="space-y-8">
+              <div className="text-center">
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                  AI-Powered Tools
+                </h2>
+                <p className="text-lg text-gray-600">
+                  Use artificial intelligence to categorize and analyze your transactions
+                </p>
+              </div>
+              
+              <ApiKeyManager />
+              <AutoCategorization />
+              <CustomCategorizationRules />
+            </div>
+          )}
+
+          {activeTab === 'data' && (
+            <div className="space-y-8">
+              <div className="text-center">
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                  Data Management
+                </h2>
+                <p className="text-lg text-gray-600">
+                  Backup, restore, and manage your financial data
+                </p>
+              </div>
+              
+              <DataManagement />
             </div>
           )}
 

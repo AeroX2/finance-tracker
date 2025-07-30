@@ -37,8 +37,8 @@ const SmartInsights: React.FC = () => {
       }
 
       const analysis = calculateSpendingAnalysis(state.transactions);
-      const expenses = state.transactions.filter(t => !t.isIncome);
-      const income = state.transactions.filter(t => t.isIncome);
+        const expenses = state.transactions.filter(t => !t.isIncome);
+  const income = state.transactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
       
       const totalExpenses = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
       const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
