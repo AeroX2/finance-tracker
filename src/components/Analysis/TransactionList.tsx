@@ -4,6 +4,13 @@ import { useAppContext, appActions } from '../../context/AppContext';
 import { formatMoney, formatDate } from '../../utils/csvParser';
 import { getCategoryColor } from '../../utils/calculations';
 import { DEFAULT_CATEGORIES } from '../../config/categories';
+import { 
+  getIncomeTransactions, 
+  getExpenseTransactions, 
+  getInvestmentTransactions,
+  calculateIncomeTotal,
+  calculateExpenseTotal
+} from '../../utils/calculations';
 
 const TransactionList: React.FC = () => {
   const { state, dispatch } = useAppContext();
@@ -79,15 +86,15 @@ const TransactionList: React.FC = () => {
     return sortOrder === 'asc' ? comparison : -comparison;
   });
 
-  const totalIncome = filteredTransactions
-    .filter(t => t.isIncome)
-    .reduce((sum, t) => sum + t.money, 0);
+  const incomeTransactions = getIncomeTransactions(filteredTransactions);
+  const expenseTransactions = getExpenseTransactions(filteredTransactions);
+  const investmentTransactions = getInvestmentTransactions(filteredTransactions);
   
-  const totalExpenses = filteredTransactions
-    .filter(t => !t.isIncome)
-    .reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const totalIncome = calculateIncomeTotal(incomeTransactions);
+  const totalExpenses = calculateExpenseTotal(expenseTransactions);
+  const totalInvestments = calculateExpenseTotal(investmentTransactions);
 
-  const netChange = totalIncome - totalExpenses;
+  const netChange = totalIncome - totalExpenses - totalInvestments;
 
   // Pagination
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);

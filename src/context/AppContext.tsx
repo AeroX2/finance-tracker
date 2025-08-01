@@ -91,25 +91,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         categories: action.payload,
       };
     
-    case 'ADD_CATEGORY':
-      return {
-        ...state,
-        categories: [...state.categories, action.payload],
-      };
-    
-    case 'UPDATE_CATEGORY':
-      return {
-        ...state,
-        categories: state.categories.map(c => 
-          c.id === action.payload.id ? action.payload : c
-        ),
-      };
-    
-    case 'DELETE_CATEGORY':
-      return {
-        ...state,
-        categories: state.categories.filter(c => c.id !== action.payload),
-      };
+
     
     case 'RESET_STATE':
       return initialState;
@@ -132,29 +114,27 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     const savedData = storage.loadData();
     if (savedData) {
       dispatch({ type: 'SET_TRANSACTIONS', payload: savedData.transactions });
-      dispatch({ type: 'SET_CATEGORIES', payload: savedData.categories });
       if (savedData.currentBalance !== null) {
         dispatch({ type: 'SET_CURRENT_BALANCE', payload: savedData.currentBalance });
       }
       if (savedData.yearlySalary !== null) {
         dispatch({ type: 'SET_YEARLY_SALARY', payload: savedData.yearlySalary });
       }
-
-    } else {
-      // Only load default categories if no data exists in localStorage
-      dispatch({ type: 'SET_CATEGORIES', payload: getDefaultCategories() });
-
     }
+    
+    // Always load categories from config - single source of truth
+    dispatch({ type: 'SET_CATEGORIES', payload: getDefaultCategories() });
+    
     setIsInitialized(true);
   }, []);
 
-  // Save data to localStorage whenever transactions, categories, balance, or salary change
+  // Save data to localStorage whenever transactions, balance, or salary change
   useEffect(() => {
     // Only save after initialization to avoid overwriting with empty data
-    if (isInitialized && (state.transactions.length > 0 || state.categories.length > 0 || state.currentBalance !== null || state.yearlySalary !== null)) {
-      storage.saveData(state.transactions, state.categories, state.currentBalance, state.yearlySalary);
+    if (isInitialized && (state.transactions.length > 0 || state.currentBalance !== null || state.yearlySalary !== null)) {
+      storage.saveData(state.transactions, state.currentBalance, state.yearlySalary);
     }
-  }, [state.transactions, state.categories, state.currentBalance, state.yearlySalary, isInitialized]);
+  }, [state.transactions, state.currentBalance, state.yearlySalary, isInitialized]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
@@ -203,18 +183,6 @@ export const appActions = {
   setCategories: (categories: Category[]) => ({ 
     type: 'SET_CATEGORIES', 
     payload: categories 
-  }),
-  addCategory: (category: Category) => ({ 
-    type: 'ADD_CATEGORY', 
-    payload: category 
-  }),
-  updateCategory: (category: Category) => ({ 
-    type: 'UPDATE_CATEGORY', 
-    payload: category 
-  }),
-  deleteCategory: (id: string) => ({ 
-    type: 'DELETE_CATEGORY', 
-    payload: id 
   }),
   resetState: () => ({ type: 'RESET_STATE' }),
 }; 

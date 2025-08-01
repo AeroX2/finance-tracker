@@ -1,7 +1,14 @@
 import React from 'react';
 import { TrendingUp, DollarSign, Target, PiggyBank } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
-import { calculateIncomeAnalysis } from '../../utils/calculations';
+import { 
+  calculateIncomeAnalysis, 
+  getIncomeTransactions, 
+  getExpenseTransactions,
+  getInvestmentTransactions,
+  calculateIncomeTotal,
+  calculateExpenseTotal
+} from '../../utils/calculations';
 import { formatMoney } from '../../utils/csvParser';
 
 const IncomeAnalysis: React.FC = () => {
@@ -17,12 +24,14 @@ const IncomeAnalysis: React.FC = () => {
     );
   }
 
-  const income = state.transactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
-  const expenses = state.transactions.filter(t => !t.isIncome);
+  const income = getIncomeTransactions(state.transactions);
+  const expenses = getExpenseTransactions(state.transactions);
+  const investments = getInvestmentTransactions(state.transactions);
   
-  const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
-  const totalExpenses = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
-  const netSavings = totalIncome - totalExpenses;
+  const totalIncome = calculateIncomeTotal(income);
+  const totalExpenses = calculateExpenseTotal(expenses);
+  const totalInvestments = calculateExpenseTotal(investments);
+  const netSavings = totalIncome - totalExpenses - totalInvestments;
 
   const incomeAnalysis = state.yearlySalary 
     ? calculateIncomeAnalysis(state.transactions, state.yearlySalary)

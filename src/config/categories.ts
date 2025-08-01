@@ -24,7 +24,7 @@ export const DEFAULT_CATEGORIES: CategoryConfig[] = [
   { id: 'subscriptions', name: 'Subscriptions', color: '#22C55E', description: 'Monthly services and recurring payments' },
   { id: 'investment', name: 'Investment', color: '#059669', description: 'Stocks, bonds, retirement contributions' },
   { id: 'donations', name: 'Donations', color: '#DC2626', description: 'Charitable giving and donations' },
-  { id: 'rent-offset', name: 'Rent Offset', color: '#16A34A', description: 'Roommate payments that offset housing costs' },
+  { id: 'income-offset', name: 'Income Offset', color: '#16A34A', description: 'Roommate payments and shared costs that offset your expenses' },
   { id: 'other', name: 'Other', color: '#6B7280', description: 'Miscellaneous expenses' },
 ];
 
@@ -92,17 +92,17 @@ export const getDefaultCategories = (): CategoryConfig[] => {
 };
 
 /**
- * Check if a category is a special category (like Investment or Rent Offset)
+ * Check if a category is a special category (like Investment or Income Offset)
  */
 export const isSpecialCategory = (categoryName: string): { 
   isInvestment: boolean; 
-  isRentOffset: boolean; 
+  isIncomeOffset: boolean; 
   isIncome: boolean; 
 } => {
   const lowerName = categoryName.toLowerCase();
   return {
     isInvestment: lowerName === 'investment',
-    isRentOffset: lowerName === 'rent offset',
+    isIncomeOffset: lowerName === 'income offset',
     isIncome: lowerName === 'income',
   };
 };

@@ -12,10 +12,10 @@ import {
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import { useAppContext } from '../../context/AppContext';
-import { calculateTrendData, calculateBalanceAwareTrendData } from '../../utils/calculations';
+import { calculateTrendData, calculateBalanceAwareTrendData, calculateNetWorthTrendData, calculateNetWorthBalanceAwareTrendData } from '../../utils/calculations';
 import { formatMoney, formatDate } from '../../utils/csvParser';
 import { filterTransactionsByPeriod } from '../../utils/timeFilter';
-import type { TimePeriod } from '../Analysis/TimePeriodSelector';
+import type { TimePeriod, CustomDateRange } from '../Analysis/TimePeriodSelector';
 
 ChartJS.register(
   CategoryScale,
@@ -32,18 +32,21 @@ interface SpendingChartProps {
   type?: 'line' | 'bar';
   showTrendline?: boolean;
   timePeriod?: TimePeriod;
+  customDateRange?: CustomDateRange;
 }
 
 const SpendingChart: React.FC<SpendingChartProps> = ({ 
   type = 'line', 
   showTrendline = true,
-  timePeriod = 'all'
+  timePeriod = 'all',
+  customDateRange
 }) => {
   const { state } = useAppContext();
   const [useBalanceAware, setUseBalanceAware] = useState(true);
+  const [useNetWorth, setUseNetWorth] = useState(false);
 
   // Filter transactions by time period
-  const filteredTransactions = filterTransactionsByPeriod(state.transactions, timePeriod);
+  const filteredTransactions = filterTransactionsByPeriod(state.transactions, timePeriod, customDateRange);
 
   if (!filteredTransactions.length) {
     return (
@@ -55,40 +58,53 @@ const SpendingChart: React.FC<SpendingChartProps> = ({
     );
   }
 
-  // Use balance-aware calculation if current balance is available and enabled
-  const trendData = useBalanceAware && state.currentBalance 
-    ? calculateBalanceAwareTrendData(filteredTransactions, state.currentBalance)
-    : calculateTrendData(filteredTransactions);
+  // Calculate trend data based on mode (spending vs net worth)
+  const trendData = (() => {
+    if (useNetWorth) {
+      return useBalanceAware && state.currentBalance 
+        ? calculateNetWorthBalanceAwareTrendData(filteredTransactions, state.currentBalance)
+        : calculateNetWorthTrendData(filteredTransactions);
+    } else {
+      return useBalanceAware && state.currentBalance 
+        ? calculateBalanceAwareTrendData(filteredTransactions, state.currentBalance)
+        : calculateTrendData(filteredTransactions);
+    }
+  })();
   
   // Prepare data for chart
   const labels = trendData.map(point => formatDate(point.date));
   const cumulativeData = trendData.map(point => point.cumulative);
   const transactionData = trendData.map(point => point.value);
 
-  // Calculate trendline
-  const trendlineData = showTrendline ? calculateTrendline(trendData) : null;
+  // Calculate trendline with confidence metrics
+  const trendlineResult = showTrendline ? calculateTrendline(trendData) : null;
 
   const chartData = {
     labels,
     datasets: [
       {
-        label: useBalanceAware && state.currentBalance ? 'Account Balance' : 'Cumulative Balance',
+        label: useNetWorth 
+          ? (useBalanceAware && state.currentBalance ? 'Net Worth' : 'Cumulative Net Worth')
+          : (useBalanceAware && state.currentBalance ? 'Account Balance' : 'Cumulative Balance'),
         data: cumulativeData,
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        borderWidth: 1,
+        borderWidth: 2,
         fill: true,
         tension: 0.1,
+        pointRadius: 0, // Remove points, show just the line
+        pointHoverRadius: 4, // Show points only on hover
       },
-      ...(trendlineData ? [{
-        label: 'Trendline',
-        data: trendlineData,
+      ...(trendlineResult ? [{
+        label: `Trendline (R² = ${trendlineResult.rSquared.toFixed(3)})`,
+        data: trendlineResult.data,
         borderColor: 'rgb(239, 68, 68)',
         backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderDash: [5, 5],
+        borderWidth: 2,
         fill: false,
         tension: 0,
+        pointRadius: 0, // No points on trendline
+        pointHoverRadius: 0, // No hover points on trendline
       }] : []),
     ],
   };
@@ -278,26 +294,44 @@ const SpendingChart: React.FC<SpendingChartProps> = ({
       <div className="mb-4">
         <div className="flex justify-between items-start mb-2">
           <h3 className="text-lg font-semibold text-gray-900">
-            {type === 'line' ? 'Spending Timeline' : 'Daily Transactions'}
+            {type === 'line' ? (useNetWorth ? 'Net Worth Timeline' : 'Spending Timeline') : 'Daily Transactions'}
           </h3>
-          {type === 'line' && state.currentBalance && (
-            <button
-              onClick={() => setUseBalanceAware(!useBalanceAware)}
-              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                useBalanceAware
-                  ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              }`}
-            >
-              {useBalanceAware ? 'Account Balance' : 'Relative Balance'}
-            </button>
+          {type === 'line' && (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setUseNetWorth(!useNetWorth)}
+                className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                  useNetWorth
+                    ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                }`}
+              >
+                {useNetWorth ? 'Net Worth' : 'Spending'}
+              </button>
+              {state.currentBalance && (
+                <button
+                  onClick={() => setUseBalanceAware(!useBalanceAware)}
+                  className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                    useBalanceAware
+                      ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                      : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                  }`}
+                >
+                  {useBalanceAware ? 'Account Balance' : 'Relative Balance'}
+                </button>
+              )}
+            </div>
           )}
         </div>
         <p className="text-sm text-gray-600">
           {type === 'line' 
-            ? useBalanceAware && state.currentBalance
-              ? 'Shows your actual account balance over time based on transaction history'
-              : 'Shows cumulative balance changes over time with trend analysis'
+            ? useNetWorth
+              ? useBalanceAware && state.currentBalance
+                ? 'Shows your net worth over time (investments count as positive assets)'
+                : 'Shows cumulative net worth changes (investments count as positive assets)'
+              : useBalanceAware && state.currentBalance
+                ? 'Shows your actual account balance over time based on transaction history'
+                : 'Shows cumulative balance changes over time with trend analysis'
             : 'Shows individual transaction amounts by day'
           }
         </p>
@@ -311,7 +345,7 @@ const SpendingChart: React.FC<SpendingChartProps> = ({
         )}
       </div>
       
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+      <div className={`mt-4 grid grid-cols-1 ${trendlineResult && showTrendline ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 text-sm`}>
         <div className="p-3 bg-gray-50 rounded-lg">
           <p className="text-gray-600">Total Transactions</p>
           <p className="font-semibold text-gray-900">{filteredTransactions.length}</p>
@@ -324,7 +358,10 @@ const SpendingChart: React.FC<SpendingChartProps> = ({
         </div>
         <div className="p-3 bg-gray-50 rounded-lg">
           <p className="text-gray-600">
-            {useBalanceAware && state.currentBalance ? 'Current Balance' : 'Net Change'}
+            {useNetWorth
+              ? (useBalanceAware && state.currentBalance ? 'Current Net Worth' : 'Net Worth Change')
+              : (useBalanceAware && state.currentBalance ? 'Current Balance' : 'Net Change')
+            }
           </p>
           <p className={`font-semibold ${
             useBalanceAware && state.currentBalance 
@@ -337,12 +374,24 @@ const SpendingChart: React.FC<SpendingChartProps> = ({
             }
           </p>
         </div>
+        {trendlineResult && showTrendline && (
+          <div className="p-3 bg-red-50 rounded-lg">
+            <p className="text-gray-600">Trend Fit (R²)</p>
+            <p className="font-semibold text-red-600">
+              {(trendlineResult.rSquared * 100).toFixed(1)}%
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {trendlineResult.rSquared > 0.8 ? 'Strong' : 
+               trendlineResult.rSquared > 0.5 ? 'Moderate' : 'Weak'} correlation
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-// Simple trendline calculation using linear regression
+// Enhanced trendline calculation with confidence metrics
 const calculateTrendline = (trendData: any[]) => {
   if (trendData.length < 2) return null;
 
@@ -354,11 +403,30 @@ const calculateTrendline = (trendData: any[]) => {
   const sumY = yValues.reduce((sum, y) => sum + y, 0);
   const sumXY = xValues.reduce((sum, x, i) => sum + x * yValues[i], 0);
   const sumXX = xValues.reduce((sum, x) => sum + x * x, 0);
+  const sumYY = yValues.reduce((sum, y) => sum + y * y, 0);
 
   const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
   const intercept = (sumY - slope * sumX) / n;
 
-  return xValues.map(x => slope * x + intercept);
+  // Calculate R-squared (coefficient of determination)
+  const meanY = sumY / n;
+  const trendlineValues = xValues.map(x => slope * x + intercept);
+  
+  const totalSumSquares = yValues.reduce((sum, y) => sum + Math.pow(y - meanY, 2), 0);
+  const residualSumSquares = yValues.reduce((sum, y, i) => sum + Math.pow(y - trendlineValues[i], 2), 0);
+  
+  const rSquared = Math.max(0, 1 - (residualSumSquares / totalSumSquares));
+  
+  // Calculate correlation coefficient
+  const correlation = Math.sqrt(rSquared) * (slope >= 0 ? 1 : -1);
+
+  return {
+    data: trendlineValues,
+    rSquared,
+    correlation,
+    slope,
+    intercept
+  };
 };
 
 export default SpendingChart; 

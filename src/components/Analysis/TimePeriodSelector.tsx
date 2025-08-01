@@ -1,14 +1,26 @@
 import React from 'react';
 import { Calendar, Clock } from 'lucide-react';
 
-export type TimePeriod = 'all' | 'day' | 'week' | 'month' | '3months' | '6months' | 'year';
+export type TimePeriod = 'all' | 'day' | 'week' | 'month' | '3months' | '6months' | 'year' | 'custom';
+
+export interface CustomDateRange {
+  startDate: string;
+  endDate: string;
+}
 
 interface TimePeriodSelectorProps {
   selectedPeriod: TimePeriod;
   onPeriodChange: (period: TimePeriod) => void;
+  customDateRange?: CustomDateRange;
+  onCustomDateRangeChange?: (range: CustomDateRange) => void;
 }
 
-const TimePeriodSelector: React.FC<TimePeriodSelectorProps> = ({ selectedPeriod, onPeriodChange }) => {
+const TimePeriodSelector: React.FC<TimePeriodSelectorProps> = ({ 
+  selectedPeriod, 
+  onPeriodChange, 
+  customDateRange,
+  onCustomDateRangeChange 
+}) => {
   const timePeriods = [
     { value: 'all', label: 'All Time', icon: Calendar },
     { value: 'day', label: 'Today', icon: Clock },
@@ -17,7 +29,17 @@ const TimePeriodSelector: React.FC<TimePeriodSelectorProps> = ({ selectedPeriod,
     { value: '3months', label: '3 Months', icon: Clock },
     { value: '6months', label: '6 Months', icon: Clock },
     { value: 'year', label: 'This Year', icon: Clock },
+    { value: 'custom', label: 'Custom Range', icon: Calendar },
   ];
+
+  const handleCustomDateChange = (field: 'startDate' | 'endDate', value: string) => {
+    if (onCustomDateRangeChange && customDateRange) {
+      onCustomDateRangeChange({
+        ...customDateRange,
+        [field]: value
+      });
+    }
+  };
 
   return (
     <div className="card">
@@ -26,7 +48,7 @@ const TimePeriodSelector: React.FC<TimePeriodSelectorProps> = ({ selectedPeriod,
           <Calendar className="h-5 w-5 text-gray-600" />
           <h3 className="text-lg font-semibold text-gray-900">Time Period</h3>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap space-x-2">
           {timePeriods.map((period) => {
             const IconComponent = period.icon;
             return (
@@ -46,6 +68,42 @@ const TimePeriodSelector: React.FC<TimePeriodSelectorProps> = ({ selectedPeriod,
           })}
         </div>
       </div>
+      
+      {selectedPeriod === 'custom' && (
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center space-x-4">
+            <div className="flex-1">
+              <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                id="startDate"
+                value={customDateRange?.startDate || ''}
+                onChange={(e) => handleCustomDateChange('startDate', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                id="endDate"
+                value={customDateRange?.endDate || ''}
+                onChange={(e) => handleCustomDateChange('endDate', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+          {customDateRange?.startDate && customDateRange?.endDate && (
+            <p className="mt-2 text-sm text-gray-600">
+              Selected range: {new Date(customDateRange.startDate).toLocaleDateString()} - {new Date(customDateRange.endDate).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

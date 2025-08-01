@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, Plus, Database } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, Database } from 'lucide-react';
 import { parseCSV } from '../utils/csvParser';
 import { useAppContext, appActions } from '../context/AppContext';
 

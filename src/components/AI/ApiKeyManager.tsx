@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Key, Eye, EyeOff, CheckCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
 
 const API_KEY_STORAGE_KEY = 'gemini_api_key';
 
@@ -59,35 +60,24 @@ const ApiKeyManager: React.FC = () => {
     setMessage(null);
 
     try {
-      // Simple test request to validate the API key
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: 'Hello'
-                  }
-                ]
-              }
-            ]
-          }),
-        }
-      );
+      // Simple test request to validate the API key using the official library
+      const genAI = new GoogleGenAI({ apiKey });
 
-      if (response.ok) {
+      const response = await genAI.models.generateContent({
+        model: 'gemini-2.5-flash-lite',
+        contents: 'Hello',
+        config: {
+          tools: [{ googleSearch: {} }]
+        }
+      });
+
+      if (response.text) {
         setValidationStatus('valid');
         setMessage({ type: 'success', text: 'API key is valid and working!' });
         localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
       } else {
         setValidationStatus('invalid');
-        setMessage({ type: 'error', text: 'API key is invalid or has insufficient permissions' });
+        setMessage({ type: 'error', text: 'API key validation failed - no response received' });
       }
     } catch (error) {
       setValidationStatus('invalid');
@@ -99,9 +89,7 @@ const ApiKeyManager: React.FC = () => {
     }
   };
 
-  const getStoredApiKey = (): string | null => {
-    return localStorage.getItem(API_KEY_STORAGE_KEY);
-  };
+
 
   return (
     <div className="card">

@@ -1,14 +1,55 @@
 import { Transaction, SpendingAnalysis, IncomeAnalysis, AnalysisResult, TrendPoint } from '../types';
 import { getCategoryColor as getColor } from '../config/categories';
 
+// Transaction filtering utilities to consolidate conditional logic
+export const isIncomeTransaction = (transaction: Transaction): boolean => {
+  return transaction.isIncome || transaction.category === 'Income Offset';
+};
+
+export const isExpenseTransaction = (transaction: Transaction): boolean => {
+  return !transaction.isIncome && transaction.category !== 'Investment' && transaction.category !== 'Income Offset';
+};
+
+export const isInvestmentTransaction = (transaction: Transaction): boolean => {
+  return !transaction.isIncome && transaction.category === 'Investment';
+};
+
+export const isIncomeOffsetTransaction = (transaction: Transaction): boolean => {
+  return transaction.category === 'Income Offset';
+};
+
+// Convenience functions for filtering transaction arrays
+export const getIncomeTransactions = (transactions: Transaction[]): Transaction[] => {
+  return transactions.filter(isIncomeTransaction);
+};
+
+export const getExpenseTransactions = (transactions: Transaction[]): Transaction[] => {
+  return transactions.filter(isExpenseTransaction);
+};
+
+export const getInvestmentTransactions = (transactions: Transaction[]): Transaction[] => {
+  return transactions.filter(isInvestmentTransaction);
+};
+
+export const getIncomeOffsetTransactions = (transactions: Transaction[]): Transaction[] => {
+  return transactions.filter(isIncomeOffsetTransaction);
+};
+
+// Helper function to calculate income total (handles both regular income and income offset amounts)
+export const calculateIncomeTotal = (incomeTransactions: Transaction[]): number => {
+  return incomeTransactions.reduce((sum, t) => sum + (t.isIncome ? t.money : Math.abs(t.money)), 0);
+};
+
+// Helper function to calculate expense total
+export const calculateExpenseTotal = (expenseTransactions: Transaction[]): number => {
+  return expenseTransactions.reduce((sum, t) => sum + Math.abs(t.money), 0);
+};
+
 export const calculateSpendingAnalysis = (transactions: Transaction[]): SpendingAnalysis => {
-  const expenses = transactions.filter(t => !t.isIncome && t.category !== 'Investment');
-  const rentOffsets = transactions.filter(t => t.category === 'Rent Offset');
+  const expenses = getExpenseTransactions(transactions);
   
-  // Calculate total spending, reducing by rent offset amounts
-  const baseSpending = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
-  const offsetAmount = rentOffsets.reduce((sum, t) => sum + Math.abs(t.money), 0);
-  const totalSpending = baseSpending - offsetAmount;
+  // Calculate total spending (income offsets are now treated as income, not negative spending)
+  const totalSpending = calculateExpenseTotal(expenses);
   
   if (expenses.length === 0) {
     return {
@@ -55,18 +96,17 @@ export const calculateIncomeAnalysis = (
   transactions: Transaction[], 
   yearlySalary: number
 ): IncomeAnalysis => {
-  // Only count actual income, not rent offsets
-  const income = transactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
-  const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
+  // Include all income sources, including income offsets
+  const income = getIncomeTransactions(transactions);
+  const totalIncome = calculateIncomeTotal(income);
   
   const weeklyIncomeIncrease = yearlySalary / 52;
   const monthlyIncomeIncrease = yearlySalary / 12;
   
-  const totalSpending = transactions
-    .filter(t => !t.isIncome && t.category !== 'Investment')
-    .reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const totalSpending = calculateExpenseTotal(getExpenseTransactions(transactions));
+  const totalInvestments = calculateExpenseTotal(getInvestmentTransactions(transactions));
   
-  const savingsRate = totalIncome > 0 ? ((totalIncome - totalSpending) / totalIncome) * 100 : 0;
+  const savingsRate = totalIncome > 0 ? ((totalIncome - totalSpending - totalInvestments) / totalIncome) * 100 : 0;
   
   // Calculate income trend (simple linear regression)
   const incomeTrend = calculateTrend(income);
@@ -82,31 +122,23 @@ export const calculateIncomeAnalysis = (
 export const calculateAnalysisResult = (
   transactions: Transaction[]
 ): AnalysisResult => {
-  const expenses = transactions.filter(t => !t.isIncome && t.category !== 'Investment');
-  const income = transactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
-  const rentOffsets = transactions.filter(t => t.category === 'Rent Offset');
+  const expenses = getExpenseTransactions(transactions);
+  const income = getIncomeTransactions(transactions);
+  const investments = getInvestmentTransactions(transactions);
   
-  // Calculate spending with rent offset reductions
-  const baseSpending = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
-  const offsetAmount = rentOffsets.reduce((sum, t) => sum + Math.abs(t.money), 0);
-  const totalSpending = baseSpending - offsetAmount;
-  
-  const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
-  const netChange = totalIncome - totalSpending;
+  // Calculate total spending, income, and investments properly
+  const totalSpending = calculateExpenseTotal(expenses);
+  const totalIncome = calculateIncomeTotal(income);
+  const totalInvestments = calculateExpenseTotal(investments);
+  const netChange = totalIncome - totalSpending - totalInvestments;
   
   const spendingAnalysis = calculateSpendingAnalysis(transactions);
   
-  // Calculate spending by category, including rent offsets as negative spending
+  // Calculate spending by category (income offsets are now treated as income, not negative spending)
   const spendingByCategory: Record<string, number> = {};
   expenses.forEach(transaction => {
     const category = transaction.category || 'Uncategorized';
     spendingByCategory[category] = (spendingByCategory[category] || 0) + Math.abs(transaction.money);
-  });
-  
-  // Add rent offsets as negative amounts to reduce overall spending
-  rentOffsets.forEach(transaction => {
-    const category = transaction.category || 'Uncategorized';
-    spendingByCategory[category] = (spendingByCategory[category] || 0) - Math.abs(transaction.money);
   });
   
   // Get top categories
@@ -152,6 +184,87 @@ export const calculateTrendData = (transactions: Transaction[]): TrendPoint[] =>
       date: transaction.date,
       value: transaction.money,
       cumulative,
+    });
+  });
+  
+  return trendData;
+};
+
+export const calculateNetWorthTrendData = (transactions: Transaction[]): TrendPoint[] => {
+  // Sort transactions by date
+  const sortedTransactions = [...transactions].sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  
+  const trendData: TrendPoint[] = [];
+  let cumulative = 0;
+  
+  sortedTransactions.forEach(transaction => {
+    // For net worth calculation:
+    // - Income and Income Offset: positive (increase net worth)
+    // - Investments: positive (assets, increase net worth)
+    // - Regular expenses: negative (decrease net worth)
+    let netWorthValue = transaction.money;
+    
+    if (isInvestmentTransaction(transaction)) {
+      // Investments are treated as positive for net worth (assets)
+      netWorthValue = Math.abs(transaction.money);
+    }
+    
+    cumulative += netWorthValue;
+    trendData.push({
+      date: transaction.date,
+      value: netWorthValue,
+      cumulative,
+    });
+  });
+  
+  return trendData;
+};
+
+export const calculateNetWorthBalanceAwareTrendData = (
+  transactions: Transaction[], 
+  currentBalance: number | null
+): TrendPoint[] => {
+  if (!currentBalance) {
+    // Fall back to regular net worth trend data if no current balance
+    return calculateNetWorthTrendData(transactions);
+  }
+
+  // Sort transactions by date
+  const sortedTransactions = [...transactions].sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  
+  if (sortedTransactions.length === 0) {
+    return [];
+  }
+
+  const trendData: TrendPoint[] = [];
+  
+  // Calculate the total net worth change from all transactions
+  const totalNetWorthChange = sortedTransactions.reduce((sum, t) => {
+    let netWorthValue = t.money;
+    if (isInvestmentTransaction(t)) {
+      netWorthValue = Math.abs(t.money);
+    }
+    return sum + netWorthValue;
+  }, 0);
+  
+  // Starting net worth would be current balance minus all net worth changes
+  let runningNetWorth = currentBalance - totalNetWorthChange;
+  
+  sortedTransactions.forEach(transaction => {
+    let netWorthValue = transaction.money;
+    if (isInvestmentTransaction(transaction)) {
+      netWorthValue = Math.abs(transaction.money);
+    }
+    
+    runningNetWorth += netWorthValue;
+    trendData.push({
+      date: transaction.date,
+      value: netWorthValue,
+      cumulative: runningNetWorth,
     });
   });
   

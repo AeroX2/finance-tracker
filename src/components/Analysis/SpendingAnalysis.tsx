@@ -1,20 +1,28 @@
 import React from 'react';
 import { TrendingDown, Calendar, DollarSign, BarChart3, TrendingUp } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
-import { calculateSpendingAnalysis } from '../../utils/calculations';
+import { 
+  calculateSpendingAnalysis, 
+  getExpenseTransactions, 
+  getIncomeTransactions, 
+  getInvestmentTransactions,
+  calculateExpenseTotal,
+  calculateIncomeTotal
+} from '../../utils/calculations';
 import { formatMoney } from '../../utils/csvParser';
 import { filterTransactionsByPeriod } from '../../utils/timeFilter';
-import type { TimePeriod } from './TimePeriodSelector';
+import type { TimePeriod, CustomDateRange } from './TimePeriodSelector';
 
 interface SpendingAnalysisProps {
   timePeriod?: TimePeriod;
+  customDateRange?: CustomDateRange;
 }
 
-const SpendingAnalysis: React.FC<SpendingAnalysisProps> = ({ timePeriod = 'all' }) => {
+const SpendingAnalysis: React.FC<SpendingAnalysisProps> = ({ timePeriod = 'all', customDateRange }) => {
   const { state } = useAppContext();
 
   // Filter transactions by time period
-  const filteredTransactions = filterTransactionsByPeriod(state.transactions, timePeriod);
+  const filteredTransactions = filterTransactionsByPeriod(state.transactions, timePeriod, customDateRange);
 
   if (!filteredTransactions.length) {
     return (
@@ -27,16 +35,13 @@ const SpendingAnalysis: React.FC<SpendingAnalysisProps> = ({ timePeriod = 'all' 
   }
 
   const analysis = calculateSpendingAnalysis(filteredTransactions);
-  const expenses = filteredTransactions.filter(t => !t.isIncome && t.category !== 'Investment');
-  const income = filteredTransactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
-  const investments = filteredTransactions.filter(t => !t.isIncome && t.category === 'Investment');
-  const rentOffsets = filteredTransactions.filter(t => t.category === 'Rent Offset');
+  const expenses = getExpenseTransactions(filteredTransactions);
+  const income = getIncomeTransactions(filteredTransactions);
+  const investments = getInvestmentTransactions(filteredTransactions);
 
-  const baseExpenses = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
-  const offsetAmount = rentOffsets.reduce((sum, t) => sum + Math.abs(t.money), 0);
-  const totalExpenses = baseExpenses - offsetAmount;
-  const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
-  const totalInvestments = investments.reduce((sum, t) => sum + Math.abs(t.money), 0);
+  const totalExpenses = calculateExpenseTotal(expenses);
+  const totalIncome = calculateIncomeTotal(income);
+  const totalInvestments = calculateExpenseTotal(investments); // investments use same calculation as expenses
   const netChange = totalIncome - totalExpenses - totalInvestments;
 
   return (

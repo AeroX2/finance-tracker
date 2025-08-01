@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Brain, Zap, CheckCircle, Loader2, AlertTriangle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Brain, Zap, CheckCircle, Loader2, AlertTriangle, X } from 'lucide-react';
 import { useAppContext, appActions } from '../../context/AppContext';
 import { formatMoney, formatDate } from '../../utils/csvParser';
 import { getCategoryColor } from '../../utils/calculations';
@@ -19,14 +19,23 @@ const AutoCategorization: React.FC = () => {
   }>>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [analyzeMode, setAnalyzeMode] = useState<'uncategorized' | 'all'>('uncategorized');
+  const cancelProcessingRef = useRef(false);
+
+  const stopProcessing = () => {
+    cancelProcessingRef.current = true;
+    setMessage({ type: 'info', text: 'Stopping AI analysis... keeping current results.' });
+    setTimeout(() => setMessage(null), 3000);
+  };
 
   const processTransactions = async () => {
     setIsProcessing(true);
     setProcessedCount(0);
     setSuggestions([]);
     setApiError(null);
+    cancelProcessingRef.current = false; // Reset cancellation flag
 
-
+    
 
     // Load custom rules from localStorage to pass to AI
     const savedCustomRules = localStorage.getItem('custom-categorization-rules');
@@ -39,11 +48,18 @@ const AutoCategorization: React.FC = () => {
         description: rule.description
       }));
 
-    // Get uncategorized transactions (no separate pattern matching - let AI handle it all)
-    const uncategorizedTransactions = state.transactions.filter(t => !t.category);
+    // Get transactions to analyze based on mode
+    const transactionsToAnalyze = analyzeMode === 'all' 
+      ? state.transactions 
+      : state.transactions.filter(t => !t.category);
     
-    if (uncategorizedTransactions.length === 0) {
+    if (transactionsToAnalyze.length === 0) {
       setIsProcessing(false);
+      setMessage({ 
+        type: 'info', 
+        text: analyzeMode === 'all' ? 'No transactions to analyze' : 'No uncategorized transactions found' 
+      });
+        setTimeout(() => setMessage(null), 3000);
       return;
     }
 
@@ -58,7 +74,7 @@ const AutoCategorization: React.FC = () => {
 
       // Use Gemini service for AI categorization with progress tracking and custom rules
       const newSuggestions = await geminiService.categorizeBatch(
-        uncategorizedTransactions.map(t => ({
+        transactionsToAnalyze.map(t => ({
           id: t.id,
           description: t.description,
           money: t.money,
@@ -66,6 +82,10 @@ const AutoCategorization: React.FC = () => {
         })),
         (processed) => {
           setProcessedCount(processed);
+          // Check if processing should be cancelled
+          if (cancelProcessingRef.current) {
+            throw new Error('PROCESSING_CANCELLED');
+          }
         },
         activeCustomRules
       );
@@ -76,18 +96,30 @@ const AutoCategorization: React.FC = () => {
       
       if (filteredSuggestions.length > 0) {
         const customRulesText = activeCustomRules.length > 0 ? ` (using ${activeCustomRules.length} custom rules)` : '';
+        const modeText = analyzeMode === 'all' ? 'all transactions' : 'uncategorized transactions';
         setMessage({ 
           type: 'success', 
-          text: `AI generated ${filteredSuggestions.length} categorization suggestions${customRulesText}!` 
+          text: `AI analyzed ${transactionsToAnalyze.length} ${modeText} and generated ${filteredSuggestions.length} suggestions${customRulesText}!` 
         });
         setTimeout(() => setMessage(null), 3000);
       }
     } catch (error) {
       console.error('AI categorization error:', error);
-      setApiError('Failed to connect to AI service. Please check your API key and try again.');
+      
+      // Handle cancellation differently from other errors
+      if (error instanceof Error && error.message === 'PROCESSING_CANCELLED') {
+        setMessage({ 
+          type: 'info', 
+          text: `Processing stopped. Kept ${suggestions.length} suggestions from partial analysis.` 
+        });
+        setTimeout(() => setMessage(null), 5000);
+      } else {
+        setApiError('Failed to connect to AI service. Please check your API key and try again.');
+      }
     }
 
     setIsProcessing(false);
+    cancelProcessingRef.current = false; // Reset cancellation flag
   };
 
   const applyAllSuggestions = () => {
@@ -201,10 +233,57 @@ const AutoCategorization: React.FC = () => {
             </div>
           )}
 
+          {/* Analysis Mode Selection */}
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h5 className="font-medium text-gray-900 mb-3">Analysis Mode</h5>
+            <div className="space-y-2">
+              <label className="flex items-center space-x-3">
+                <input
+                  type="radio"
+                  value="uncategorized"
+                  checked={analyzeMode === 'uncategorized'}
+                  onChange={(e) => setAnalyzeMode(e.target.value as 'uncategorized' | 'all')}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Analyze uncategorized only</span>
+                  <p className="text-xs text-gray-500">Only process transactions without categories ({uncategorizedCount} transactions)</p>
+                </div>
+              </label>
+              <label className="flex items-center space-x-3">
+                <input
+                  type="radio"
+                  value="all"
+                  checked={analyzeMode === 'all'}
+                  onChange={(e) => setAnalyzeMode(e.target.value as 'uncategorized' | 'all')}
+                  className="text-blue-600 focus:ring-blue-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Re-analyze all transactions</span>
+                  <p className="text-xs text-gray-500">Process all transactions and replace existing categories ({state.transactions.length} transactions)</p>
+                </div>
+              </label>
+            </div>
+            {analyzeMode === 'all' && (
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start space-x-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5" />
+                  <div className="text-xs text-yellow-800">
+                    <p className="font-medium">Warning:</p>
+                    <p>This will replace ALL existing categorizations with new AI suggestions. Consider creating a backup first.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center space-x-4">
             <button
               onClick={processTransactions}
-              disabled={isProcessing || uncategorizedCount === 0 || !getStoredApiKey()}
+              disabled={isProcessing || 
+                (analyzeMode === 'uncategorized' && uncategorizedCount === 0) || 
+                (analyzeMode === 'all' && state.transactions.length === 0) || 
+                !getStoredApiKey()}
               className="btn-primary flex items-center space-x-2"
             >
               {isProcessing ? (
@@ -213,9 +292,21 @@ const AutoCategorization: React.FC = () => {
                 <Zap className="h-4 w-4" />
               )}
               <span>
-                {isProcessing ? `Processing... (${processedCount}/${uncategorizedCount})` : 'Analyze with AI'}
+                {isProcessing ? 
+                  `Processing... (${processedCount}/${analyzeMode === 'all' ? state.transactions.length : uncategorizedCount})` : 
+                  'Analyze with AI'}
               </span>
             </button>
+
+            {isProcessing && (
+              <button
+                onClick={stopProcessing}
+                className="btn-secondary flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white border-red-600"
+              >
+                <X className="h-4 w-4" />
+                <span>Stop</span>
+              </button>
+            )}
 
             {suggestions.length > 0 && (
               <button
@@ -236,20 +327,22 @@ const AutoCategorization: React.FC = () => {
           <div className="flex items-center space-x-3">
             <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
             <div className="flex-1">
-              <p className="font-medium text-gray-900">Processing transactions with AI (batched)...</p>
-              <p className="text-sm text-gray-600">
-                Analyzed {processedCount} of {uncategorizedCount} transactions
+              <p className="font-medium text-gray-900">
+                Processing {analyzeMode === 'all' ? 'all transactions' : 'uncategorized transactions'} with AI (batched)...
               </p>
-              {uncategorizedCount > 0 && (
+              <p className="text-sm text-gray-600">
+                Analyzed {processedCount} of {analyzeMode === 'all' ? state.transactions.length : uncategorizedCount} transactions
+              </p>
+              {(analyzeMode === 'all' ? state.transactions.length : uncategorizedCount) > 0 && (
                 <div className="mt-2">
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
                       className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${(processedCount / uncategorizedCount) * 100}%` }}
+                      style={{ width: `${(processedCount / (analyzeMode === 'all' ? state.transactions.length : uncategorizedCount)) * 100}%` }}
                     ></div>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    {Math.round((processedCount / uncategorizedCount) * 100)}% complete
+                    {Math.round((processedCount / (analyzeMode === 'all' ? state.transactions.length : uncategorizedCount)) * 100)}% complete
                   </p>
                 </div>
               )}
@@ -262,7 +355,7 @@ const AutoCategorization: React.FC = () => {
       {suggestions.length > 0 && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            AI Suggestions ({suggestions.length} recommendations)
+            AI Suggestions ({suggestions.length} {analyzeMode === 'all' ? 'categorizations' : 'recommendations'})
           </h3>
           
           <div className="space-y-3">

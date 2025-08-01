@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Brain, Plus, Trash2, Edit3, Save, X, AlertTriangle, CheckCircle } from 'lucide-react';
-import { useAppContext, appActions } from '../../context/AppContext';
+import { useAppContext } from '../../context/AppContext';
 import { getCategoryColor } from '../../utils/calculations';
 
 interface CustomRule {
@@ -14,8 +14,9 @@ interface CustomRule {
 }
 
 const CustomCategorizationRules: React.FC = () => {
-  const { state, dispatch } = useAppContext();
+  const { state } = useAppContext();
   const [rules, setRules] = useState<CustomRule[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editingRule, setEditingRule] = useState<Partial<CustomRule>>({});
   const [showAddForm, setShowAddForm] = useState(false);
@@ -27,17 +28,21 @@ const CustomCategorizationRules: React.FC = () => {
     const savedRules = localStorage.getItem('custom-categorization-rules');
     if (savedRules) {
       try {
-        setRules(JSON.parse(savedRules));
+        const parsedRules = JSON.parse(savedRules);
+        setRules(parsedRules);
       } catch (error) {
         console.error('Failed to load custom rules:', error);
       }
     }
+    setIsLoaded(true);
   }, []);
 
-  // Save rules to localStorage whenever rules change
+  // Save rules to localStorage whenever rules change (but only after initial load)
   useEffect(() => {
-    localStorage.setItem('custom-categorization-rules', JSON.stringify(rules));
-  }, [rules]);
+    if (isLoaded) {
+      localStorage.setItem('custom-categorization-rules', JSON.stringify(rules));
+    }
+  }, [rules, isLoaded]);
 
   const addRule = () => {
     if (!newRule.pattern || !newRule.category) {
@@ -95,34 +100,7 @@ const CustomCategorizationRules: React.FC = () => {
     ));
   };
 
-  const applyCustomRules = () => {
-    const activeRules = rules.filter(rule => rule.isActive);
-    if (activeRules.length === 0) {
-      setMessage({ type: 'info', text: 'No active custom rules to apply' });
-      setTimeout(() => setMessage(null), 3000);
-      return;
-    }
 
-    let updatedCount = 0;
-    const updatedTransactions = state.transactions.map(transaction => {
-      const description = transaction.description.toLowerCase();
-      
-      // Find matching custom rules (highest priority first)
-      const matchingRule = activeRules
-        .filter(rule => description.includes(rule.pattern))
-        .sort((a, b) => b.priority - a.priority)[0];
-
-      if (matchingRule && !transaction.category) {
-        updatedCount++;
-        return { ...transaction, category: matchingRule.category };
-      }
-      return transaction;
-    });
-
-    dispatch(appActions.setTransactions(updatedTransactions));
-    setMessage({ type: 'success', text: `Applied ${updatedCount} custom categorizations!` });
-    setTimeout(() => setMessage(null), 3000);
-  };
 
   const testRule = (pattern: string) => {
     const matchingTransactions = state.transactions.filter(t => 
@@ -195,24 +173,29 @@ const CustomCategorizationRules: React.FC = () => {
           </div>
         </div>
 
-        {/* Apply Rules Button */}
+        {/* Action Buttons */}
         <div className="flex items-center space-x-4 mb-6">
           <button
-            onClick={applyCustomRules}
-            disabled={rules.filter(r => r.isActive).length === 0}
-            className="btn-primary flex items-center space-x-2"
-          >
-            <Brain className="h-4 w-4" />
-            <span>Apply Custom Rules</span>
-          </button>
-          
-          <button
             onClick={() => setShowAddForm(true)}
-            className="btn-secondary flex items-center space-x-2"
+            className="btn-primary flex items-center space-x-2"
           >
             <Plus className="h-4 w-4" />
             <span>Add New Rule</span>
           </button>
+        </div>
+        
+        {/* Info about automatic application */}
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-start space-x-2">
+            <Brain className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-medium text-blue-900">Automatic Integration</h4>
+              <p className="text-sm text-blue-700 mt-1">
+                Custom rules are automatically applied when you use "Analyze with AI" in the Auto-Categorization section. 
+                Active rules will be sent to the AI to help improve categorization accuracy.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

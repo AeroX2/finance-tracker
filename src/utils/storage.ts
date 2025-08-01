@@ -1,8 +1,7 @@
-import type { Transaction, Category } from '../types';
+import type { Transaction } from '../types';
 
 interface StoredData {
   transactions: Transaction[];
-  categories: Category[];
   currentBalance: number | null;
   yearlySalary: number | null;
   lastUpdated: string;
@@ -14,11 +13,10 @@ const CURRENT_VERSION = '1.0.0';
 
 export const storage = {
   // Save data to localStorage
-  saveData: (transactions: Transaction[], categories: Category[], currentBalance?: number | null, yearlySalary?: number | null) => {
+  saveData: (transactions: Transaction[], currentBalance?: number | null, yearlySalary?: number | null) => {
     try {
       const data: StoredData = {
         transactions,
-        categories,
         currentBalance: currentBalance || null,
         yearlySalary: yearlySalary || null,
         lastUpdated: new Date().toISOString(),
@@ -31,7 +29,7 @@ export const storage = {
   },
 
   // Load data from localStorage
-  loadData: (): { transactions: Transaction[]; categories: Category[]; currentBalance: number | null; yearlySalary: number | null } | null => {
+  loadData: (): { transactions: Transaction[]; currentBalance: number | null; yearlySalary: number | null } | null => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) return null;
@@ -45,11 +43,8 @@ export const storage = {
         return null;
       }
 
-
-
       return {
         transactions: data.transactions,
-        categories: data.categories,
         currentBalance: data.currentBalance || null,
         yearlySalary: data.yearlySalary || null
       };
@@ -96,7 +91,6 @@ export const storage = {
       return {
         exists: true,
         transactionCount: data.transactions.length,
-        categoryCount: data.categories.length,
         lastUpdated: data.lastUpdated,
         version: data.version
       };

@@ -14,7 +14,7 @@ import { useAppContext } from '../../context/AppContext';
 import { getCategoryColor } from '../../utils/calculations';
 import { formatMoney } from '../../utils/csvParser';
 import { filterTransactionsByPeriod } from '../../utils/timeFilter';
-import type { TimePeriod } from './TimePeriodSelector';
+import type { TimePeriod, CustomDateRange } from './TimePeriodSelector';
 
 ChartJS.register(
   CategoryScale,
@@ -28,14 +28,15 @@ ChartJS.register(
 
 interface CategoryAnalysisProps {
   timePeriod?: TimePeriod;
+  customDateRange?: CustomDateRange;
 }
 
-const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ timePeriod = 'all' }) => {
+const CategoryAnalysis: React.FC<CategoryAnalysisProps> = ({ timePeriod = 'all', customDateRange }) => {
   const { state } = useAppContext();
   const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
 
   // Filter transactions by time period
-  const filteredTransactions = filterTransactionsByPeriod(state.transactions, timePeriod);
+  const filteredTransactions = filterTransactionsByPeriod(state.transactions, timePeriod, customDateRange);
 
   if (!filteredTransactions.length) {
     return (

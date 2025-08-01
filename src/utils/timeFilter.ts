@@ -1,9 +1,29 @@
 import type { Transaction } from '../types';
-import type { TimePeriod } from '../components/Analysis/TimePeriodSelector';
+import type { TimePeriod, CustomDateRange } from '../components/Analysis/TimePeriodSelector';
 
-export const filterTransactionsByPeriod = (transactions: Transaction[], period: TimePeriod): Transaction[] => {
+export const filterTransactionsByPeriod = (
+  transactions: Transaction[], 
+  period: TimePeriod, 
+  customDateRange?: CustomDateRange
+): Transaction[] => {
   if (period === 'all') {
     return transactions;
+  }
+
+  if (period === 'custom') {
+    if (!customDateRange?.startDate || !customDateRange?.endDate) {
+      return transactions; // Return all if custom range is incomplete
+    }
+    
+    const startDate = new Date(customDateRange.startDate);
+    const endDate = new Date(customDateRange.endDate);
+    // Set end date to end of day
+    endDate.setHours(23, 59, 59, 999);
+    
+    return transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.date);
+      return transactionDate >= startDate && transactionDate <= endDate;
+    });
   }
 
   const now = new Date();
@@ -42,7 +62,7 @@ export const filterTransactionsByPeriod = (transactions: Transaction[], period: 
   });
 };
 
-export const getPeriodLabel = (period: TimePeriod): string => {
+export const getPeriodLabel = (period: TimePeriod, customDateRange?: CustomDateRange): string => {
   switch (period) {
     case 'all':
       return 'All Time';
@@ -58,6 +78,13 @@ export const getPeriodLabel = (period: TimePeriod): string => {
       return 'Last 6 Months';
     case 'year':
       return 'This Year';
+    case 'custom':
+      if (customDateRange?.startDate && customDateRange?.endDate) {
+        const start = new Date(customDateRange.startDate).toLocaleDateString();
+        const end = new Date(customDateRange.endDate).toLocaleDateString();
+        return `${start} - ${end}`;
+      }
+      return 'Custom Range';
     default:
       return 'All Time';
   }

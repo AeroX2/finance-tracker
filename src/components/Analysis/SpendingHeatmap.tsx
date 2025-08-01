@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, TrendingUp, Eye } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { formatMoney, formatDate } from '../../utils/csvParser';
 
@@ -44,6 +44,25 @@ const SpendingHeatmap: React.FC<SpendingHeatmapProps> = ({ className = '' }) => 
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [dataMode, setDataMode] = useState<DataMode>('spending');
+  const [excludeRent, setExcludeRent] = useState(false);
+
+  // Helper function to identify rent-related expense transactions
+  const isRentTransaction = (transaction: any) => {
+    if (!transaction.category && !transaction.description) return false;
+    
+    const category = (transaction.category || '').toLowerCase();
+    const description = (transaction.description || '').toLowerCase();
+    
+    // Check category matches (only for expense categories)
+    const rentCategories = ['home', 'rent', 'housing'];
+    if (rentCategories.some(cat => category.includes(cat))) {
+      return true;
+    }
+    
+    // Check description for rent-related keywords
+    const rentKeywords = ['rent', 'housing', 'lease', 'mortgage', 'property', 'apartment', 'flat'];
+    return rentKeywords.some(keyword => description.includes(keyword));
+  };
 
   // Get calendar data for current period
   const calendarData = useMemo(() => {
@@ -83,11 +102,16 @@ const SpendingHeatmap: React.FC<SpendingHeatmapProps> = ({ className = '' }) => 
           return tDate.toISOString().split('T')[0] === dateStr;
         });
         
-        const spending = dayTransactions
+        // Filter out rent transactions if toggle is enabled
+        const filteredTransactions = excludeRent 
+          ? dayTransactions.filter(t => !isRentTransaction(t))
+          : dayTransactions;
+        
+        const spending = filteredTransactions
           .filter(t => !t.isIncome)
           .reduce((sum, t) => sum + Math.abs(t.money), 0);
         
-        const income = dayTransactions
+        const income = filteredTransactions
           .filter(t => t.isIncome)
           .reduce((sum, t) => sum + t.money, 0);
         
@@ -96,7 +120,7 @@ const SpendingHeatmap: React.FC<SpendingHeatmapProps> = ({ className = '' }) => 
           spending,
           income,
           net: income - spending,
-          transactions: dayTransactions,
+          transactions: filteredTransactions,
           isEmpty: false
         });
       }
@@ -126,16 +150,21 @@ const SpendingHeatmap: React.FC<SpendingHeatmapProps> = ({ className = '' }) => 
           return tDate.getFullYear() === year && tDate.getMonth() === m;
         });
         
-        const spending = monthTransactions
+        // Filter out rent transactions if toggle is enabled
+        const filteredTransactions = excludeRent 
+          ? monthTransactions.filter(t => !isRentTransaction(t))
+          : monthTransactions;
+        
+        const spending = filteredTransactions
           .filter(t => !t.isIncome)
           .reduce((sum, t) => sum + Math.abs(t.money), 0);
         
-        const income = monthTransactions
+        const income = filteredTransactions
           .filter(t => t.isIncome)
           .reduce((sum, t) => sum + t.money, 0);
         
         const daysWithTransactions = new Set(
-          monthTransactions.map(t => t.date.split('/').reverse().join('-').split('T')[0])
+          filteredTransactions.map(t => t.date.split('/').reverse().join('-').split('T')[0])
         ).size;
         
         months.push({
@@ -144,7 +173,7 @@ const SpendingHeatmap: React.FC<SpendingHeatmapProps> = ({ className = '' }) => 
           spending,
           income,
           net: income - spending,
-          transactions: monthTransactions,
+          transactions: filteredTransactions,
           daysWithTransactions
         });
       }
@@ -163,16 +192,21 @@ const SpendingHeatmap: React.FC<SpendingHeatmapProps> = ({ className = '' }) => 
           return tDate.getFullYear() === y;
         });
         
-        const spending = yearTransactions
+        // Filter out rent transactions if toggle is enabled
+        const filteredTransactions = excludeRent 
+          ? yearTransactions.filter(t => !isRentTransaction(t))
+          : yearTransactions;
+        
+        const spending = filteredTransactions
           .filter(t => !t.isIncome)
           .reduce((sum, t) => sum + Math.abs(t.money), 0);
         
-        const income = yearTransactions
+        const income = filteredTransactions
           .filter(t => t.isIncome)
           .reduce((sum, t) => sum + t.money, 0);
         
         const monthsWithTransactions = new Set(
-          yearTransactions.map(t => {
+          filteredTransactions.map(t => {
             const tDate = new Date(t.date.split('/').reverse().join('-'));
             return tDate.getMonth();
           })
@@ -183,14 +217,14 @@ const SpendingHeatmap: React.FC<SpendingHeatmapProps> = ({ className = '' }) => 
           spending,
           income,
           net: income - spending,
-          transactions: yearTransactions,
+          transactions: filteredTransactions,
           monthsWithTransactions
         });
       }
       
       return years;
     }
-  }, [currentDate, state.transactions, viewMode]);
+  }, [currentDate, state.transactions, viewMode, excludeRent]);
 
   // Calculate color intensity
   const getColorIntensity = (item: any) => {
@@ -356,6 +390,19 @@ const SpendingHeatmap: React.FC<SpendingHeatmapProps> = ({ className = '' }) => 
                 {mode.label}
               </button>
             ))}
+          </div>
+          
+          {/* Rent Exclusion Toggle */}
+          <div className="flex items-center space-x-2">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={excludeRent}
+                onChange={(e) => setExcludeRent(e.target.checked)}
+                className="text-purple-600 focus:ring-purple-500 rounded"
+              />
+              <span className="text-sm text-gray-700">Exclude rent/housing expenses</span>
+            </label>
           </div>
           
           {/* Navigation */}

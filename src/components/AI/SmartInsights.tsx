@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Lightbulb, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, DollarSign } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
-import { calculateSpendingAnalysis } from '../../utils/calculations';
+import { 
+  calculateSpendingAnalysis, 
+  getIncomeTransactions, 
+  getExpenseTransactions,
+  getInvestmentTransactions,
+  calculateIncomeTotal,
+  calculateExpenseTotal
+} from '../../utils/calculations';
 import { formatMoney } from '../../utils/csvParser';
 
 interface Insight {
@@ -37,12 +44,14 @@ const SmartInsights: React.FC = () => {
       }
 
       const analysis = calculateSpendingAnalysis(state.transactions);
-        const expenses = state.transactions.filter(t => !t.isIncome);
-  const income = state.transactions.filter(t => t.isIncome && t.category !== 'Rent Offset');
+      const expenses = getExpenseTransactions(state.transactions);
+      const income = getIncomeTransactions(state.transactions);
+      const investments = getInvestmentTransactions(state.transactions);
       
-      const totalExpenses = expenses.reduce((sum, t) => sum + Math.abs(t.money), 0);
-      const totalIncome = income.reduce((sum, t) => sum + t.money, 0);
-      const netChange = totalIncome - totalExpenses;
+      const totalExpenses = calculateExpenseTotal(expenses);
+      const totalIncome = calculateIncomeTotal(income);
+      const totalInvestments = calculateExpenseTotal(investments);
+      const netChange = totalIncome - totalExpenses - totalInvestments;
       const savingsRate = totalIncome > 0 ? (netChange / totalIncome) * 100 : 0;
 
       // Spending Pattern Insights

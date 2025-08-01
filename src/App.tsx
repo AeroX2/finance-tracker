@@ -1,25 +1,44 @@
-import React, { useState } from 'react';
-import { DollarSign, Upload, TrendingUp, List, Database, Brain } from 'lucide-react';
+import React, { useState, Suspense } from 'react';
+import { DollarSign, Upload, TrendingUp, List, Database, Brain, Loader2 } from 'lucide-react';
 import { AppProvider } from './context/AppContext';
 import FileUpload from './components/FileUpload';
 import BalanceInput from './components/BalanceInput';
-import SpendingChart from './components/Charts/SpendingChart';
-import SpendingAnalysis from './components/Analysis/SpendingAnalysis';
-import CategoryAnalysis from './components/Analysis/CategoryAnalysis';
-import BalanceTracking from './components/Analysis/BalanceTracking';
-import TransactionList from './components/Analysis/TransactionList';
-import PayPalAnalysis from './components/Analysis/PayPalAnalysis';
-import ComparisonAnalysis from './components/Analysis/ComparisonAnalysis';
-import SpendingHeatmap from './components/Analysis/SpendingHeatmap';
-import AutoCategorization from './components/AI/AutoCategorization';
-import CustomCategorizationRules from './components/AI/CustomCategorizationRules';
-import ApiKeyManager from './components/AI/ApiKeyManager';
-import DataManagement from './components/DataManagement';
-import TimePeriodSelector, { TimePeriod } from './components/Analysis/TimePeriodSelector';
+import TimePeriodSelector, { TimePeriod, CustomDateRange } from './components/Analysis/TimePeriodSelector';
+
+// Lazy load heavy analysis components
+const SpendingChart = React.lazy(() => import('./components/Charts/SpendingChart'));
+const SpendingAnalysis = React.lazy(() => import('./components/Analysis/SpendingAnalysis'));
+const CategoryAnalysis = React.lazy(() => import('./components/Analysis/CategoryAnalysis'));
+const SpendingHeatmap = React.lazy(() => import('./components/Analysis/SpendingHeatmap'));
+
+const TransactionList = React.lazy(() => import('./components/Analysis/TransactionList'));
+const PayPalAnalysis = React.lazy(() => import('./components/Analysis/PayPalAnalysis'));
+
+// Lazy load AI components
+const AutoCategorization = React.lazy(() => import('./components/AI/AutoCategorization'));
+const CustomCategorizationRules = React.lazy(() => import('./components/AI/CustomCategorizationRules'));
+const ApiKeyManager = React.lazy(() => import('./components/AI/ApiKeyManager'));
+
+// Lazy load data management
+const DataManagement = React.lazy(() => import('./components/DataManagement'));
+
+// Loading component for Suspense fallback
+const LoadingSpinner: React.FC<{ text?: string }> = ({ text = "Loading..." }) => (
+  <div className="flex items-center justify-center py-8">
+    <div className="flex items-center space-x-2">
+      <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+      <span className="text-gray-600">{text}</span>
+    </div>
+  </div>
+);
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'upload' | 'transactions' | 'analysis' | 'ai' | 'data'>('upload');
   const [selectedTimePeriod, setSelectedTimePeriod] = useState<TimePeriod>('all');
+  const [customDateRange, setCustomDateRange] = useState<CustomDateRange>({
+    startDate: '',
+    endDate: ''
+  });
 
   return (
     <AppProvider>
@@ -135,35 +154,33 @@ const App: React.FC = () => {
                 <TimePeriodSelector 
                   selectedPeriod={selectedTimePeriod}
                   onPeriodChange={setSelectedTimePeriod}
+                  customDateRange={customDateRange}
+                  onCustomDateRangeChange={setCustomDateRange}
                 />
               </div>
               
-              <div className="space-y-8">
-                <div className="card">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">Spending Timeline</h3>
-                  <SpendingChart type="line" showTrendline={true} timePeriod={selectedTimePeriod} />
-                </div>
-                
-                <div className="card">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">Daily Transactions</h3>
-                  <SpendingChart type="bar" showTrendline={false} timePeriod={selectedTimePeriod} />
-                </div>
+              <div className="card">
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">Spending Timeline</h3>
+                <Suspense fallback={<LoadingSpinner text="Loading spending chart..." />}>
+                  <SpendingChart type="line" showTrendline={true} timePeriod={selectedTimePeriod} customDateRange={customDateRange} />
+                </Suspense>
               </div>
               
-              {/* Balance Tracking */}
-              <BalanceTracking timePeriod={selectedTimePeriod} />
-              
+
               {/* Spending Analysis */}
-              <SpendingAnalysis timePeriod={selectedTimePeriod} />
+              <Suspense fallback={<LoadingSpinner text="Calculating spending analysis..." />}>
+                <SpendingAnalysis timePeriod={selectedTimePeriod} customDateRange={customDateRange} />
+              </Suspense>
               
               {/* Category Analysis */}
-              <CategoryAnalysis timePeriod={selectedTimePeriod} />
+              <Suspense fallback={<LoadingSpinner text="Analyzing categories..." />}>
+                <CategoryAnalysis timePeriod={selectedTimePeriod} customDateRange={customDateRange} />
+              </Suspense>
               
               {/* Spending Heatmap */}
-              <SpendingHeatmap />
-              
-              {/* Comparison Analysis */}
-              <ComparisonAnalysis />
+              <Suspense fallback={<LoadingSpinner text="Loading spending heatmap..." />}>
+                <SpendingHeatmap />
+              </Suspense>
             </div>
           )}
 
@@ -178,8 +195,12 @@ const App: React.FC = () => {
                 </p>
               </div>
               
-              <PayPalAnalysis />
-              <TransactionList />
+              <Suspense fallback={<LoadingSpinner text="Loading PayPal analysis..." />}>
+                <PayPalAnalysis />
+              </Suspense>
+              <Suspense fallback={<LoadingSpinner text="Loading transaction list..." />}>
+                <TransactionList />
+              </Suspense>
             </div>
           )}
 
@@ -194,9 +215,15 @@ const App: React.FC = () => {
                 </p>
               </div>
               
-              <ApiKeyManager />
-              <AutoCategorization />
-              <CustomCategorizationRules />
+              <Suspense fallback={<LoadingSpinner text="Loading API key manager..." />}>
+                <ApiKeyManager />
+              </Suspense>
+              <Suspense fallback={<LoadingSpinner text="Loading AI categorization..." />}>
+                <AutoCategorization />
+              </Suspense>
+              <Suspense fallback={<LoadingSpinner text="Loading custom rules..." />}>
+                <CustomCategorizationRules />
+              </Suspense>
             </div>
           )}
 
@@ -211,7 +238,9 @@ const App: React.FC = () => {
                 </p>
               </div>
               
-              <DataManagement />
+              <Suspense fallback={<LoadingSpinner text="Loading data management..." />}>
+                <DataManagement />
+              </Suspense>
             </div>
           )}
 

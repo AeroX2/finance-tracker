@@ -1,39 +1,33 @@
+import { GoogleGenAI } from '@google/genai';
 import { DEFAULT_CATEGORIES } from '../config/categories';
 
-interface GeminiRequest {
-  contents: Array<{
-    parts: Array<{
-      text: string;
-    }>;
-  }>;
-}
-
-interface GeminiResponse {
-  candidates: Array<{
-    content: {
-      parts: Array<{
-        text: string;
-      }>;
-    };
-  }>;
-}
-
 class GeminiService {
-  private baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  private genAI: GoogleGenAI | null = null;
   private batchSize = 20; // Configurable batch size
 
   constructor() {
-    // API key is now managed through localStorage
+    this.initializeModel();
   }
 
   private getApiKey(): string {
     return localStorage.getItem('gemini_api_key') || '';
   }
 
+  private initializeModel() {
+    const apiKey = this.getApiKey();
+    if (apiKey) {
+      this.genAI = new GoogleGenAI({ apiKey });
+    }
+  }
+
   // Configure batch size for processing
   setBatchSize(size: number) {
-    this.batchSize = Math.max(1, Math.min(50, size)); // Limit between 1-20
+    this.batchSize = Math.max(1, Math.min(50, size)); // Limit between 1-50
+  }
 
+  // Reinitialize the client when API key changes
+  refreshApiKey() {
+    this.initializeModel();
   }
 
   // Generate category list and rules from config
@@ -96,61 +90,63 @@ ${customRulesList}
 `;
     }
 
-    return `Please categorize this financial ${verb}. Respond with ONLY a ${responseType} in this exact format (no markdown, no code blocks, just the JSON):
+    return `You are a financial transaction categorization assistant with access to real-time information. Analyze the ${verb} below and categorize them accurately.
 
-${responseFormat}
+${transactionDetails.includes('paypal') || transactionDetails.includes('PayPal') ? 
+  'For PayPal transactions, use search to identify the actual merchant or service behind the payment to categorize more accurately.' : 
+  'Use search when needed to identify unfamiliar merchants, services, or businesses to ensure accurate categorization.'}
 
 Transaction details:
 ${transactionDetails}
 
 Available categories: ${categories}
 
-General Rules:
+Categorization rules:
 ${rules}${customRulesSection}
 
-Be confident but accurate. Consider the user's custom preferences above when making decisions. Confidence should be between 0.5 and 1.0. Respond with ONLY the ${responseType}, no additional text or formatting.`;
+Use your search capability to:
+- Look up unfamiliar business names or merchants
+- Identify what services or products a company provides
+- Determine the most appropriate category based on actual business activities
+- Handle ambiguous transaction descriptions by researching the merchant
+
+Respond with ONLY a ${responseType} in this exact format (no markdown, no code blocks, just the JSON):
+
+${responseFormat}
+
+Confidence should be between 0.5 and 1.0. Be accurate and use search when uncertain about a merchant or service.`;
   }
 
   private async makeRequest(prompt: string): Promise<string> {
-    const apiKey = this.getApiKey();
-    if (!apiKey) {
-      throw new Error('Gemini API key not found. Please configure your API key in the AI settings.');
+    if (!this.genAI) {
+      this.initializeModel();
+      if (!this.genAI) {
+        throw new Error('Gemini API key not found. Please configure your API key in the AI settings.');
+      }
     }
 
-    const requestBody: GeminiRequest = {
-      contents: [
-        {
-          parts: [
-            {
-              text: prompt
-            }
-          ]
-        }
-      ]
-    };
-
     try {
-      const response = await fetch(`${this.baseUrl}?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+      const response = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash-lite',
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }]
+        }
       });
-
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-      }
-
-      const data: GeminiResponse = await response.json();
       
-      if (data.candidates && data.candidates.length > 0) {
-        return data.candidates[0].content.parts[0].text;
-      } else {
+      const text = response.text;
+      
+      if (!text) {
         throw new Error('No response from Gemini API');
       }
+      
+      return text;
     } catch (error) {
       console.error('Gemini API error:', error);
+      // If the error is related to API key, reinitialize
+      if (error instanceof Error && error.message.includes('API_KEY')) {
+        this.genAI = null;
+      }
       throw error;
     }
   }
